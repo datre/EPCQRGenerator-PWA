@@ -143,7 +143,24 @@ document.addEventListener('DOMContentLoaded', () => {
     qrDiv.appendChild(canvas);
     body.appendChild(qrDiv);
 
-    // Generate QR code
+    // Info rows (appended after canvas; buttons added in QR callback)
+    const info = document.createElement('div');
+    info.className = 'qr-info';
+    if (params.recipient) addInfoRow(info, I18n.t('qr_label_recipient'), params.recipient);
+    if (params.iban) addInfoRow(info, I18n.t('qr_label_iban'), IBAN.format(params.iban));
+    if (params.amount && parseFloat(params.amount) > 0) {
+      addInfoRow(info, I18n.t('qr_label_amount'), parseFloat(params.amount).toFixed(2) + ' EUR');
+    }
+    const ref = params.structuredRef || params.reference;
+    if (ref) addInfoRow(info, I18n.t('qr_label_reference'), ref);
+    body.appendChild(info);
+
+    // Action buttons container
+    const actions = document.createElement('div');
+    actions.className = 'qr-actions';
+    body.appendChild(actions);
+
+    // Generate QR code - use callback form to ensure canvas is populated before use
     if (typeof QRCode !== 'undefined') {
       QRCode.toCanvas(canvas, payload, {
         width: 280,
@@ -153,59 +170,44 @@ document.addEventListener('DOMContentLoaded', () => {
           dark: getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#000000',
           light: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#FFFFFF'
         }
+      }, function (error) {
+        if (error) {
+          console.error('QR generation error:', error);
+        }
+
+        // Share button (if Web Share API is available)
+        if (navigator.share || navigator.canShare) {
+          const shareBtn = createActionBtn(
+            '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>' +
+            I18n.t('qr_button_share'),
+            'btn btn-outlined'
+          );
+          shareBtn.addEventListener('click', async () => {
+            try {
+              const blob = await canvasToBlob(canvas);
+              const file = new File([blob], 'epc-qr.png', { type: 'image/png' });
+              await navigator.share({ files: [file], title: 'EPC QR Code' });
+            } catch (e) { /* user cancelled */ }
+          });
+          actions.appendChild(shareBtn);
+        }
+
+        // Download button
+        const dlBtn = createActionBtn(
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>' +
+          I18n.t('qr_button_download'),
+          'btn btn-primary'
+        );
+        dlBtn.addEventListener('click', () => {
+          const link = document.createElement('a');
+          link.download = 'epc-qr-' + (params.recipient || 'code').replace(/\s+/g, '_') + '.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        });
+        actions.appendChild(dlBtn);
       });
     }
 
-    // Info rows
-    const info = document.createElement('div');
-    info.className = 'qr-info';
-
-    if (params.recipient) addInfoRow(info, I18n.t('qr_label_recipient'), params.recipient);
-    if (params.iban) addInfoRow(info, I18n.t('qr_label_iban'), IBAN.format(params.iban));
-    if (params.amount && parseFloat(params.amount) > 0) {
-      addInfoRow(info, I18n.t('qr_label_amount'), parseFloat(params.amount).toFixed(2) + ' EUR');
-    }
-    const ref = params.structuredRef || params.reference;
-    if (ref) addInfoRow(info, I18n.t('qr_label_reference'), ref);
-
-    body.appendChild(info);
-
-    // Action buttons
-    const actions = document.createElement('div');
-    actions.className = 'qr-actions';
-
-    // Share button (if Web Share API is available)
-    if (navigator.share || navigator.canShare) {
-      const shareBtn = createActionBtn(
-        '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>' +
-        I18n.t('qr_button_share'),
-        'btn btn-outlined'
-      );
-      shareBtn.addEventListener('click', async () => {
-        try {
-          const blob = await canvasToBlob(canvas);
-          const file = new File([blob], 'epc-qr.png', { type: 'image/png' });
-          await navigator.share({ files: [file], title: 'EPC QR Code' });
-        } catch (e) { /* user cancelled */ }
-      });
-      actions.appendChild(shareBtn);
-    }
-
-    // Download button
-    const dlBtn = createActionBtn(
-      '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>' +
-      I18n.t('qr_button_download'),
-      'btn btn-primary'
-    );
-    dlBtn.addEventListener('click', () => {
-      const link = document.createElement('a');
-      link.download = 'epc-qr-' + (params.recipient || 'code').replace(/\s+/g, '_') + '.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    });
-    actions.appendChild(dlBtn);
-
-    body.appendChild(actions);
     openModal(modalQr);
   }
 
