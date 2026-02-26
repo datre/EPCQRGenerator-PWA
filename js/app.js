@@ -131,17 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Returns '#rrggbb' hex for the QR code colors, respecting dark mode.
-  // The qrcode library requires strict hex strings - CSS rgb() values will
-  // cause a silent internal error and produce a blank canvas.
-  function getQrColors() {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    return {
-      dark:  dark ? '#E8EAED' : '#1A1A1A',
-      light: dark ? '#1E1E1E' : '#FFFFFF'
-    };
-  }
-
   // === QR Modal ===
   function showQrModal(payload, params) {
     const body = $('qr-modal-body');
@@ -166,26 +155,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ref) addInfoRow(info, I18n.t('qr_label_reference'), ref);
     body.appendChild(info);
 
-    // Action buttons container - added to DOM now so layout is stable
+    // Action buttons container
     const actions = document.createElement('div');
     actions.className = 'qr-actions';
     body.appendChild(actions);
 
-    // Generate QR code into the canvas.
-    // IMPORTANT: color values MUST be hex strings. The library rejects rgb/hsl
-    // values with a silent error, leaving the canvas blank.
+    // Generate QR code.
+    // Do NOT pass a custom color option — the library defaults to pure
+    // #000000 on #ffffff which is the only value guaranteed to work on
+    // every browser/WebView including iOS WKWebView in standalone PWA mode.
     QRCode.toCanvas(canvas, payload, {
       width: 280,
       margin: 2,
-      errorCorrectionLevel: 'M',
-      color: getQrColors()
+      errorCorrectionLevel: 'M'
     }, function (error) {
       if (error) {
         console.error('QR generation error:', error);
         return;
       }
 
-      // Share button (Web Share API - mainly iOS/Android)
+      // Share button (Web Share API — available on iOS Safari / Android Chrome)
       if (navigator.share) {
         const shareBtn = createActionBtn(
           '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>' +
@@ -349,7 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
     nameInput.focus();
   });
 
-  // Dialog confirm/cancel handlers via event delegation
   dialogSaveDraft.querySelector('.dialog-confirm').addEventListener('click', () => {
     const name = $('save-draft-name').value.trim();
     if (!name) return;
@@ -476,7 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const folders = Storage.getFolders();
     const drafts = Storage.getDrafts(currentFolder);
 
-    // Update title
     if (currentFolder) {
       const folder = folders.find(f => f.id === currentFolder);
       title.textContent = folder ? folder.name : I18n.t('drafts_title');
@@ -486,11 +473,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let hasItems = false;
 
-    // Back button if in a folder
     if (currentFolder) {
       const backItem = createDraftItem({
         icon: 'folder',
-        name: '← ' + I18n.t('drafts_title'),
+        name: '\u2190 ' + I18n.t('drafts_title'),
         detail: '',
         isBack: true
       });
@@ -503,7 +489,6 @@ document.addEventListener('DOMContentLoaded', () => {
       hasItems = true;
     }
 
-    // Folders (only at root level)
     if (!currentFolder) {
       folders.forEach(folder => {
         const count = Storage.getDraftCountInFolder(folder.id);
@@ -516,19 +501,15 @@ document.addEventListener('DOMContentLoaded', () => {
           currentFolder = folder.id;
           renderDrafts();
         });
-
-        // Long press / context menu
         addContextMenu(item, [
           { label: I18n.t('drafts_action_rename'), icon: 'edit', action: () => renameFolder(folder) },
           { label: I18n.t('drafts_action_delete_folder'), icon: 'delete', danger: true, action: () => confirmDeleteFolder(folder) }
         ]);
-
         list.appendChild(item);
         hasItems = true;
       });
     }
 
-    // Drafts
     drafts.forEach(draft => {
       const item = createDraftItem({
         icon: 'payment',
@@ -536,13 +517,11 @@ document.addEventListener('DOMContentLoaded', () => {
         detail: IBAN.format(draft.iban || '')
       });
       item.addEventListener('click', () => loadDraftToForm(draft));
-
       addContextMenu(item, [
         { label: I18n.t('drafts_action_edit'), icon: 'edit', action: () => showEditDraftModal(draft) },
         { label: I18n.t('drafts_action_move'), icon: 'move', action: () => showMoveDraftModal(draft) },
         { label: I18n.t('drafts_action_delete'), icon: 'delete', danger: true, action: () => confirmDeleteDraft(draft) }
       ]);
-
       list.appendChild(item);
       hasItems = true;
     });
@@ -600,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function addContextMenu(element, menuItems) {
     let longPressTimer;
 
-    // Long press for mobile
     element.addEventListener('touchstart', (e) => {
       longPressTimer = setTimeout(() => {
         e.preventDefault();
@@ -612,13 +590,11 @@ document.addEventListener('DOMContentLoaded', () => {
     element.addEventListener('touchend', () => clearTimeout(longPressTimer));
     element.addEventListener('touchmove', () => clearTimeout(longPressTimer));
 
-    // Right-click for desktop
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       showContextMenu(e.clientX, e.clientY, menuItems);
     });
 
-    // Click on more button
     const moreBtn = element.querySelector('.draft-more');
     if (moreBtn) {
       moreBtn.addEventListener('click', (e) => {
@@ -642,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
       contextMenu.appendChild(btn);
     });
 
-    // Position menu
     contextMenu.style.display = 'block';
     contextOverlay.style.display = 'block';
 
@@ -692,13 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
       version: draft.version || '002'
     };
 
-    // Switch to create tab
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-tab="create"]').classList.add('active');
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     $('view-create').classList.add('active');
 
-    // Trigger validation
     ibanInput.dispatchEvent(new Event('input'));
     updateGenerateButton();
   }
@@ -723,7 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
     openModal(modalEditDraft);
   }
 
-  // Save edited draft
   document.querySelector('.modal-save-edit').addEventListener('click', () => {
     if (!editingDraftId) return;
     const updates = {
@@ -748,7 +720,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const list = document.createElement('ul');
     list.className = 'move-list';
 
-    // Root option
     const rootItem = document.createElement('li');
     rootItem.className = 'move-list-item' + (!draft.folderId ? ' selected' : '');
     rootItem.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg><span>' + escapeHtml(I18n.t('drafts_folder_root')) + '</span>';
@@ -760,7 +731,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     list.appendChild(rootItem);
 
-    // Folders
     Storage.getFolders().forEach(folder => {
       const item = document.createElement('li');
       item.className = 'move-list-item' + (draft.folderId === folder.id ? ' selected' : '');
@@ -816,10 +786,8 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim();
     btnClearSearch.style.display = q ? 'block' : 'none';
-
     if (q) {
-      const results = Storage.searchDrafts(q);
-      renderSearchResults(results);
+      renderSearchResults(Storage.searchDrafts(q));
     } else {
       renderDrafts();
     }
@@ -852,13 +820,11 @@ document.addEventListener('DOMContentLoaded', () => {
         detail: IBAN.format(draft.iban || '')
       });
       item.addEventListener('click', () => loadDraftToForm(draft));
-
       addContextMenu(item, [
         { label: I18n.t('drafts_action_edit'), icon: 'edit', action: () => showEditDraftModal(draft) },
         { label: I18n.t('drafts_action_move'), icon: 'move', action: () => showMoveDraftModal(draft) },
         { label: I18n.t('drafts_action_delete'), icon: 'delete', danger: true, action: () => confirmDeleteDraft(draft) }
       ]);
-
       list.appendChild(item);
     });
   }

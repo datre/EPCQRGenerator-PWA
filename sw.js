@@ -1,4 +1,4 @@
-const CACHE_NAME = 'epc-qr-v1';
+const CACHE_NAME = 'epc-qr-v3';
 
 // All resources to pre-cache for offline support
 const PRECACHE_URLS = [
@@ -25,9 +25,7 @@ const EXTERNAL_URLS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      // Cache local resources
       return cache.addAll(PRECACHE_URLS).then(() => {
-        // Try to cache external resources too (may fail if offline)
         return Promise.allSettled(
           EXTERNAL_URLS.map(url =>
             fetch(url).then(response => {
@@ -57,7 +55,6 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // For same-origin requests: cache-first
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request).then(cached => {
@@ -74,7 +71,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For external requests (CDN): network-first with cache fallback
   event.respondWith(
     fetch(event.request).then(response => {
       if (response.ok) {
